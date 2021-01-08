@@ -1,6 +1,7 @@
 package main
 
 import (
+	"./collection"
 	"./db"
 	"fmt"
 	"strings"
@@ -38,4 +39,17 @@ func main() {
 		user := u.(*UserModel)
 		fmt.Println(user.DisplayName, user.UserName)
 	})
+	admin := "admin"
+	idx := maleUsers.FindIndex(func(u interface{}) bool {
+		return strings.Contains(u.(*UserModel).UserName, admin)
+	})
+	fmt.Println(idx)
+
+	testData := []string{"1", "2", "34"}
+	c := collection.ConvStrList2GoSlice(testData)
+	index := c.FindIndex(func(s interface{}) bool {
+		return s == "34"
+	})
+	fmt.Println(index, c[1:], len(c))
+
 }

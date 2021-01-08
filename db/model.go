@@ -1,6 +1,7 @@
 package db
 
 import (
+	"../collection"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -66,7 +67,7 @@ func (e dbEngine) ExecSQL(sqlStmt string) bool {
 	return false
 }
 
-func (e dbEngine) FetchAll(sqlStmt string, m iTable) ResultSet {
+func (e dbEngine) FetchAll(sqlStmt string, m iTable) collection.GoSlice {
 	if err := initDB(); err != nil {
 		return nil
 	}
@@ -138,7 +139,7 @@ type Model struct {
 	Table iTable
 }
 
-func (m Model) FetchAll(whereOrQueryStmt string) ResultSet {
+func (m Model) FetchAll(whereOrQueryStmt string) collection.GoSlice {
 	e := dbEngine{}
 	if strings.HasPrefix(whereOrQueryStmt, "SELECT") || strings.HasPrefix(whereOrQueryStmt, "select") {
 		return e.FetchAll(whereOrQueryStmt, m.Table)
