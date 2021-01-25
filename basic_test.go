@@ -1,10 +1,13 @@
-package main
+package gogo
 
 import (
-	"./collection"
-	"./db"
 	"fmt"
 	"strings"
+	"testing"
+
+	"./collection"
+
+	"./db"
 )
 
 type UserModel struct {
@@ -13,7 +16,12 @@ type UserModel struct {
 	DisplayName string `db:"display_name"`
 }
 
-func main() {
+type Person struct {
+	Name string
+	Age  int
+}
+
+func TestBasicModel(t *testing.T) {
 	db.SetGlobalConnStr("user:pwd@tcp(localhost:3306)/ci")
 	userModel := db.NewDBModel(&UserModel{}, "t_user")
 	maleUsers := userModel.FetchAll("sex=1")
@@ -45,11 +53,34 @@ func main() {
 	})
 	fmt.Println(idx)
 
+}
+
+func TestBasicCollection(t *testing.T) {
 	testData := []string{"1", "2", "34"}
-	c := collection.ConvStrList2GoSlice(testData)
+	c := collection.NewGoSlice(testData)
 	index := c.FindIndex(func(s interface{}) bool {
 		return s == "34"
 	})
 	fmt.Println(index, c[1:], len(c))
+
+	testStrs := collection.GoSlice{"1", "2", "3"}
+	testStrs.ForEach(func(p interface{}) {
+		fmt.Println(p.(string) + "0")
+	})
+
+	var people = []Person{
+		{"leilei", 18},
+		{"doudou", 4},
+	}
+
+	personSlice := collection.NewGoSlice(people)
+	personSlice.ForEach(func(p interface{}) {
+		fmt.Println(p.(Person).Name)
+	})
+	personSlice.Map(func(p interface{}) interface{} {
+		return Person{"wang" + p.(Person).Name, p.(Person).Age + 1}
+	}).ForEach(func(p interface{}) {
+		fmt.Println(p.(Person).Name, p.(Person).Age)
+	})
 
 }

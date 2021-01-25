@@ -1,7 +1,6 @@
 package db
 
 import (
-	"../collection"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -11,15 +10,20 @@ import (
 	"strconv"
 	"strings"
 
+	"../collection"
+
 	_ "github.com/go-sql-driver/mysql"
 )
 
-var db = &sql.DB{}
+var (
+	db            = &sql.DB{}
+	globalConnStr string
+)
 
-const ExcludedFieldName = "Table"
-const ModelTagKeyName = "db"
-
-var globalConnStr string
+const (
+	ExcludedFieldName = "Table"
+	ModelTagKeyName   = "db"
+)
 
 func SetGlobalConnStr(connStr string) {
 	globalConnStr = connStr

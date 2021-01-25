@@ -1,5 +1,7 @@
 package collection
 
+import "reflect"
+
 type GoSlice []interface{}
 
 func (rs GoSlice) ForEach(cb func(p interface{})) {
@@ -10,6 +12,15 @@ func (rs GoSlice) ForEach(cb func(p interface{})) {
 
 func (rs GoSlice) MapToStrList(cb func(p interface{}) string) []string {
 	res := make([]string, 0)
+	for _, r := range rs {
+		sr := cb(r)
+		res = append(res, sr)
+	}
+	return res
+}
+
+func (rs GoSlice) Map(cb func(p interface{}) interface{}) GoSlice {
+	res := make(GoSlice, 0)
 	for _, r := range rs {
 		sr := cb(r)
 		res = append(res, sr)
@@ -36,10 +47,16 @@ func (rs GoSlice) FindIndex(cb func(p interface{}) bool) int {
 	return -1
 }
 
-func ConvStrList2GoSlice(sl []string) GoSlice {
-	goSlice := make([]interface{}, len(sl))
-	for i, v := range sl {
-		goSlice[i] = v
+func NewGoSlice(il interface{}) (ret GoSlice) {
+	ret = make(GoSlice, 0)
+	switch reflect.TypeOf(il).Kind() {
+	case reflect.Slice, reflect.Array:
+		s := reflect.ValueOf(il)
+		for i := 0; i < s.Len(); i++ {
+			ret = append(ret, s.Index(i).Interface())
+		}
+	default:
+		ret = nil
 	}
-	return goSlice
+	return
 }
