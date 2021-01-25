@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"../collection"
+	"github.com/wangleilei2010/gogo/collection"
 
 	_ "github.com/go-sql-driver/mysql"
 )

@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"./collection"
+	"github.com/wangleilei2010/gogo/collection"
 
-	"./db"
+	"github.com/wangleilei2010/gogo/db"
 )
 
 type UserModel struct {
