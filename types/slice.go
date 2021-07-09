@@ -1,6 +1,9 @@
 package types
 
-import "reflect"
+import (
+	"fmt"
+	"reflect"
+)
 
 type Slice struct {
 	innerSlice []interface{}
@@ -10,6 +13,10 @@ func (rs Slice) ForEach(cb func(p interface{})) {
 	for _, r := range rs.innerSlice {
 		cb(r)
 	}
+}
+
+func (rs Slice) Len() int {
+	return len(rs.innerSlice)
 }
 
 func (rs Slice) MapToStrList(cb func(p interface{}) string) []string {
@@ -49,8 +56,65 @@ func (rs Slice) FindIndex(cb func(p interface{}) bool) int {
 	return -1
 }
 
+func (rs Slice) IndexOf(p interface{}) int {
+	for idx, r := range rs.innerSlice {
+		if r == p {
+			return idx
+		}
+	}
+	return -1
+}
+
+func (rs Slice) GetAt(index int) interface{} {
+	for idx, r := range rs.innerSlice {
+		if idx == index {
+			return r
+		}
+	}
+	return nil
+}
+
+func (rs Slice) Contains(p interface{}) bool {
+	for _, r := range rs.innerSlice {
+		if r == p {
+			return true
+		}
+	}
+	return false
+}
+
 func (rs *Slice) Append(v interface{}) {
 	rs.innerSlice = append(rs.innerSlice, v)
+}
+
+func (rs *Slice) Extend(il interface{}) {
+	switch reflect.TypeOf(il).Kind() {
+	case reflect.Slice, reflect.Array:
+		s := reflect.ValueOf(il)
+		for i := 0; i < s.Len(); i++ {
+			rs.Append(s.Index(i).Interface())
+		}
+	default:
+		fmt.Println("[WARNING]Unsupported Type:", reflect.TypeOf(il).Kind())
+	}
+}
+
+func (rs *Slice) Remove(v interface{}) {
+	idx := rs.IndexOf(v)
+	if idx != -1 {
+		rs.innerSlice = append(rs.innerSlice[:idx], rs.innerSlice[idx+1:]...)
+	}
+}
+
+func (rs *Slice) RemoveAll(v interface{}) {
+	for {
+		idx := rs.IndexOf(v)
+		if idx != -1 {
+			rs.innerSlice = append(rs.innerSlice[:idx], rs.innerSlice[idx+1:]...)
+		} else {
+			break
+		}
+	}
 }
 
 func ConvSlice(il interface{}) (ret *Slice) {
