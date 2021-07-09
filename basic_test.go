@@ -84,3 +84,7 @@ func TestBasicCollection(t *testing.T) {
 	})
 
 }
+
+func TestMap(t *testing.T) {
+
+}
