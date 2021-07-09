@@ -29,12 +29,20 @@ func (m *Map) ContainsKey(key interface{}) bool {
 	}
 }
 
-func (m *Map) Values() []interface{} {
+func (m *Map) Keys() *Slice {
+	ret := make([]interface{}, 0)
+	for k, _ := range m.innerMap {
+		ret = append(ret, k)
+	}
+	return ConvSlice(ret)
+}
+
+func (m *Map) Values() *Slice {
 	ret := make([]interface{}, 0)
 	for _, v := range m.innerMap {
 		ret = append(ret, v)
 	}
-	return ret
+	return ConvSlice(ret)
 }
 
 func (m *Map) EntrySet() []MapEntry {
@@ -48,7 +56,7 @@ func (m *Map) EntrySet() []MapEntry {
 
 func (m *Map) ContainsValue(value interface{}) bool {
 	values := m.Values()
-	for _, e := range values {
+	for _, e := range values.innerSlice {
 		if e == value {
 			return true
 		}
@@ -56,7 +64,8 @@ func (m *Map) ContainsValue(value interface{}) bool {
 	return false
 }
 
-func NewMap(m map[interface{}]interface{}) *Map {
+func NewMap() *Map {
+	m := make(map[interface{}]interface{})
 	iMap := &Map{innerMap: m}
 	return iMap
 }
