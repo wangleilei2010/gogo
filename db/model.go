@@ -29,19 +29,19 @@ func SetGlobalConnStr(connStr string) {
 	globalConnStr = connStr
 }
 
-func initDB() error {
+func InitDB() error {
 	if globalConnStr != "" {
 		var err error
 		if db, err = sql.Open("mysql", globalConnStr); err != nil {
 			log.Fatal("fail to connect database!")
 			return err
 		}
-		db.SetConnMaxLifetime(500)
-		db.SetMaxIdleConns(100)
+		db.SetConnMaxLifetime(2000)
+		db.SetMaxIdleConns(50)
 
 		if err := db.Ping(); err != nil {
 			log.Fatal("fail to ping database server!")
-			return err
+			return nil
 		}
 		return nil
 	} else {
@@ -49,7 +49,7 @@ func initDB() error {
 	}
 }
 
-func closeDB() error {
+func CloseDB() error {
 	err := db.Close()
 	return err
 }
@@ -57,11 +57,24 @@ func closeDB() error {
 type dbEngine struct {
 }
 
-func (e dbEngine) ExecSQL(sqlStmt string) bool {
-	if err := initDB(); err != nil {
-		return false
+func Count(sqlStmt string) int {
+	rowNum := 0
+	if rows, err := db.Query(sqlStmt); err == nil {
+		for rows.Next() {
+			rowNum++
+		}
+		return rowNum
+	} else {
+		log.Println("SQL:", sqlStmt, "raise err:", err)
+		return -1
 	}
-	defer closeDB()
+}
+
+func (e dbEngine) ExecSQL(sqlStmt string) bool {
+	//if err := initDB(); err != nil {
+	//	return false
+	//}
+	//defer closeDB()
 
 	if result, err := db.Exec(sqlStmt); err == nil {
 		if _, err := result.RowsAffected(); err == nil {
@@ -72,10 +85,10 @@ func (e dbEngine) ExecSQL(sqlStmt string) bool {
 }
 
 func (e dbEngine) FetchAll(sqlStmt string, m iTable) collection.GoSlice {
-	if err := initDB(); err != nil {
-		return nil
-	}
-	defer closeDB()
+	//if err := initDB(); err != nil {
+	//	return nil
+	//}
+	//defer closeDB()
 
 	fExp := regexp.MustCompile(`(?i)(select|SELECT|from|FROM)`)
 	matches := fExp.Split(sqlStmt, 3)

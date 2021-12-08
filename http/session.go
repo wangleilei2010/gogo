@@ -3,6 +3,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/wangleilei2010/gogo/types"
 	"io"
 	"io/ioutil"
 	"log"
@@ -21,6 +22,14 @@ func (resp *Response) Json() map[string]interface{} {
 		return nil
 	}
 	return mapData
+}
+
+func (resp *Response) J() *types.KeyStringMap {
+	if j := resp.Json(); j != nil {
+		return types.ConvKSMap(j)
+	} else {
+		return nil
+	}
 }
 
 type Session struct {
