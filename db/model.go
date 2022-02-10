@@ -93,26 +93,32 @@ func (e dbEngine) FetchAll(sqlStmt string, m iTable) collection.GoSlice {
 	fExp := regexp.MustCompile(`(?i)(select|SELECT|from|FROM)`)
 	matches := fExp.Split(sqlStmt, 3)
 	if len(matches) > 2 {
-		oriFields := strings.Split(matches[1], ",")
 		if rows, err := db.Query(sqlStmt); err == nil {
 			defer rows.Close()
 			t := reflect.TypeOf(m)
 			if t.Kind() == reflect.Ptr {
 				t = t.Elem()
 			}
+			//oriFields := strings.Split(matches[1], ",")
+			//if len(oriFields) == 1 && strings.Contains(oriFields[0], "*") {
+			oriFields, _ := rows.Columns()
+			//}
 			columns := len(oriFields)
-			//dbFields := make([]string, 0, columns)
 			modelFields := make([]modelField, 0, columns)
 
+			startPos := 0
+		LOOP:
 			for j := 0; j < columns; j++ {
-				for i := 0; i < t.NumField(); i++ {
+				for i := startPos; i < t.NumField(); i++ {
 					if t.Field(i).Name != ExcludedFieldName &&
 						strings.Contains(oriFields[j], t.Field(i).Tag.Get(ModelTagKeyName)) {
-						//dbFields = append(dbFields, string(t.Field(i).Tag))
 						modelFields = append(modelFields, modelField{
 							Name: t.Field(i).Name,
 							Type: t.Field(i).Type.Name(),
-							Tag:  t.Field(i).Tag.Get(ModelTagKeyName)})
+							Tag:  t.Field(i).Tag.Get(ModelTagKeyName),
+							Pos:  j})
+						startPos = i + 1
+						continue LOOP
 					}
 				}
 			}
@@ -129,18 +135,18 @@ func (e dbEngine) FetchAll(sqlStmt string, m iTable) collection.GoSlice {
 				}
 
 				model := reflect.New(t)
-				for i, v := range modelFields {
+				for _, v := range modelFields {
 					switch v.Type {
 					case "string":
-						model.Elem().FieldByName(v.Name).SetString(data[i].String)
+						model.Elem().FieldByName(v.Name).SetString(data[v.Pos].String)
 					case "int64", "int":
-						intVal, _ := strconv.ParseInt(data[i].String, 10, 64)
+						intVal, _ := strconv.ParseInt(data[v.Pos].String, 10, 64)
 						model.Elem().FieldByName(v.Name).SetInt(intVal)
 					case "float64":
-						floatVal, _ := strconv.ParseFloat(data[i].String, 64)
+						floatVal, _ := strconv.ParseFloat(data[v.Pos].String, 64)
 						model.Elem().FieldByName(v.Name).SetFloat(floatVal)
 					default:
-						model.Elem().FieldByName(v.Name).SetString(data[i].String)
+						model.Elem().FieldByName(v.Name).SetString(data[v.Pos].String)
 					}
 				}
 				m := model.Interface()
@@ -158,13 +164,13 @@ type Model struct {
 
 func (m Model) FetchAll(whereOrQueryStmt string) collection.GoSlice {
 	e := dbEngine{}
-	if strings.HasPrefix(whereOrQueryStmt, "SELECT") || strings.HasPrefix(whereOrQueryStmt, "select") {
+	if stmt := strings.ToUpper(whereOrQueryStmt); strings.HasPrefix(stmt, "SELECT") {
 		return e.FetchAll(whereOrQueryStmt, m.Table)
 	} else {
 		modelFields := getFields(m.Table)
 		var dbFields = make([]string, 0)
-		for _, m := range modelFields {
-			dbFields = append(dbFields, m.Tag)
+		for _, mf := range modelFields {
+			dbFields = append(dbFields, mf.Tag)
 		}
 		sqlStmt := fmt.Sprintf("SELECT %s FROM %s WHERE %s", strings.Join(dbFields, ","),
 			m.Table.getTableName(), whereOrQueryStmt)
@@ -219,6 +225,7 @@ type modelField struct {
 	Name string
 	Type string
 	Tag  string
+	Pos  int
 }
 
 type iTable interface {

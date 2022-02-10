@@ -3,7 +3,7 @@ package http
 import (
 	"bytes"
 	"encoding/json"
-	"github.com/wangleilei2010/gogo/types"
+	"github.com/oliveagle/jsonpath"
 	"io"
 	"io/ioutil"
 	"log"
@@ -24,9 +24,13 @@ func (resp *Response) Json() map[string]interface{} {
 	return mapData
 }
 
-func (resp *Response) J() *types.KeyStringMap {
+func (resp *Response) J(expression string) interface{} {
 	if j := resp.Json(); j != nil {
-		return types.ConvKSMap(j)
+		if r, e := jsonpath.JsonPathLookup(j, expression); e != nil {
+			return nil
+		} else {
+			return r
+		}
 	} else {
 		return nil
 	}
