@@ -66,7 +66,7 @@ func (pool *ConnPool) Count(sqlStmt string) int {
 func (pool *ConnPool) Exec(query string, args ...any) (n int64, err error) {
 	// example: pool.db.Exec("INSERT test SET name=?,age =?", "xiaowei", 18)
 	var result sql.Result
-	if result, err = pool.db.Exec(query, args); err != nil {
+	if result, err = pool.db.Exec(query, args...); err != nil {
 		return
 	} else {
 		n, err = result.RowsAffected()
