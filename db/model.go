@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"gogo/collection"
+	"github.com/wangleilei2010/gogo/collection"
 	"log"
 	"reflect"
 	"regexp"
