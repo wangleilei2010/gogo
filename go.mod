@@ -1,4 +1,4 @@
-module gogo
+module github.com/wangleilei2010/gogo
 
 go 1.18
 
