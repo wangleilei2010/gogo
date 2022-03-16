@@ -51,6 +51,17 @@ func (pool *ConnPool) Close() error {
 	return err
 }
 
+func (pool *ConnPool) Count(sqlStmt string) int {
+	rowNum := 0
+	if rows, err := pool.db.Query(sqlStmt); err == nil {
+		for rows.Next() {
+			rowNum++
+		}
+		return rowNum
+	}
+	return -1
+}
+
 // Exec 支持数据库增/删/改
 func (pool *ConnPool) Exec(query string, args ...any) (n int64, err error) {
 	// example: pool.db.Exec("INSERT test SET name=?,age =?", "xiaowei", 18)

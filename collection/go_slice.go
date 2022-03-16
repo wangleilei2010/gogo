@@ -11,6 +11,14 @@ func (s *Slice[T]) Push(t T) {
 	*s = ns
 }
 
+func (s Slice[T]) Len() int {
+	l := 0
+	for i, _ := range s {
+		l = i
+	}
+	return l + 1
+}
+
 func (s Slice[T]) Foreach(f func(t T)) {
 	for _, e := range s {
 		f(e)
