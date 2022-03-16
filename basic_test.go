@@ -5,86 +5,61 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/wangleilei2010/gogo/collection"
+	"gogo/collection"
 
-	"github.com/wangleilei2010/gogo/db"
+	"gogo/db"
 )
 
 type UserModel struct {
 	db.Table
+	TableName   string `db:"t_user"`
 	UserName    string `db:"username"`
 	DisplayName string `db:"display_name"`
 }
 
 type Person struct {
-	Name string
-	Age  int
+	Name        string
+	ChineseName string
 }
 
-func TestBasicModel(t *testing.T) {
-	db.SetGlobalConnStr("user:pwd@tcp(localhost:3306)/ci")
-	userModel := db.NewDBModel(&UserModel{}, "t_user")
-	maleUsers := userModel.FetchAll("sex=1")
-
-	//for _, u := range maleUsers {
-	//	user := u.(*UserModel)
-	//	fmt.Println(user.DisplayName, user.UserName)
-	//}
-
-	maleUsers.ForEach(func(u interface{}) {
-		user := u.(*UserModel)
-		fmt.Println(user.DisplayName, user.UserName)
-	})
-
-	displayNames := maleUsers.MapToStrList(func(u interface{}) string {
-		return u.(*UserModel).DisplayName
-	})
-	fmt.Println(displayNames)
-
-	maleUsers.Filter(func(u interface{}) bool {
-		return strings.Contains(u.(*UserModel).UserName, "wang")
-	}).ForEach(func(u interface{}) {
-		user := u.(*UserModel)
-		fmt.Println(user.DisplayName, user.UserName)
-	})
-	admin := "admin"
-	idx := maleUsers.FindIndex(func(u interface{}) bool {
-		return strings.Contains(u.(*UserModel).UserName, admin)
-	})
-	fmt.Println(idx)
-
-}
-
-func TestBasicCollection(t *testing.T) {
-	testData := []string{"1", "2", "34"}
-	c := collection.NewGoSlice(testData)
-	index := c.FindIndex(func(s interface{}) bool {
-		return s == "34"
-	})
-	fmt.Println(index, c[1:], len(c))
-
-	testStrs := collection.GoSlice{"1", "2", "3"}
-	testStrs.ForEach(func(p interface{}) {
-		fmt.Println(p.(string) + "0")
-	})
-
-	var people = []Person{
-		{"leilei", 18},
-		{"doudou", 4},
+func TestBasicModelGenerics(t *testing.T) {
+	var pool *db.ConnPool
+	var err error
+	pool, err = db.OpenPool("root:root@tcp(ip:3306)/ci")
+	defer pool.Close()
+	if err != nil {
+		fmt.Println("open db err:", err)
+		//return
 	}
 
-	personSlice := collection.NewGoSlice(people)
-	personSlice.ForEach(func(p interface{}) {
-		fmt.Println(p.(Person).Name)
-	})
-	personSlice.Map(func(p interface{}) interface{} {
-		return Person{"wang" + p.(Person).Name, p.(Person).Age + 1}
-	}).ForEach(func(p interface{}) {
-		fmt.Println(p.(Person).Name, p.(Person).Age)
-	})
+	if users, err := db.FetchAll[UserModel](pool, "display_name LIKE CONCAT(?,'%') AND sex=?", "李", 1); err != nil {
+		fmt.Println(err)
+	} else {
+		users.Find(func(u UserModel) bool {
+			return strings.Contains(u.DisplayName, "李")
+		}).Foreach(func(u UserModel) {
+			fmt.Println(u.DisplayName)
+		})
 
-}
+		collection.Map[UserModel, Person](users, func(u UserModel) Person {
+			return Person{
+				Name:        u.UserName,
+				ChineseName: u.DisplayName,
+			}
+		}).Foreach(func(p Person) {
+			fmt.Println(p.ChineseName, p.Name, "##")
+		})
+	}
 
-func TestMap(t *testing.T) {
+	if user, err := db.FetchOne[UserModel](pool, "sex=?", 1); err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(user.UserName, user.IsDataNotNull())
+		m := make(collection.GenericMap[string, UserModel])
+		m[user.UserName] = user
+		for k, v := range m {
+			fmt.Println(k, v)
+		}
+	}
 
 }

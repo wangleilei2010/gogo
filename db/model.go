@@ -4,125 +4,110 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"gogo/collection"
 	"log"
 	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
 
-	"github.com/wangleilei2010/gogo/collection"
-
 	_ "github.com/go-sql-driver/mysql"
-)
-
-var (
-	db            = &sql.DB{}
-	globalConnStr string
 )
 
 const (
 	ExcludedFieldName = "Table"
+	TableName         = "TableName"
 	ModelTagKeyName   = "db"
 )
 
-func SetGlobalConnStr(connStr string) {
-	globalConnStr = connStr
+type ConnPool struct {
+	db      *sql.DB
+	connStr string
 }
 
-func InitDB() error {
-	if globalConnStr != "" {
-		var err error
-		if db, err = sql.Open("mysql", globalConnStr); err != nil {
-			log.Fatal("fail to connect database!")
-			return err
-		}
-		db.SetConnMaxLifetime(2000)
-		db.SetMaxIdleConns(50)
+func OpenPool(connStr string) (pool *ConnPool, err error) {
+	pool = &ConnPool{db: &sql.DB{}, connStr: connStr}
+	err = pool.open()
+	return
+}
 
-		if err := db.Ping(); err != nil {
-			log.Fatal("fail to ping database server!")
-			return nil
-		}
-		return nil
+func (pool *ConnPool) open() error {
+	var err error
+	if pool.connStr == "" {
+		return errors.New("DB connStr not set")
+	}
+	if pool.db, err = sql.Open("mysql", pool.connStr); err != nil {
+		return err
 	} else {
-		return errors.New("global connStr not set")
+		pool.db.SetConnMaxLifetime(2000)
+		pool.db.SetMaxIdleConns(10)
+		err = pool.db.Ping()
+		return err
 	}
 }
 
-func CloseDB() error {
-	err := db.Close()
+func (pool *ConnPool) Close() error {
+	err := pool.db.Close()
 	return err
 }
 
-type dbEngine struct {
-}
-
-func Count(sqlStmt string) int {
-	rowNum := 0
-	if rows, err := db.Query(sqlStmt); err == nil {
-		for rows.Next() {
-			rowNum++
-		}
-		return rowNum
+// Exec 支持数据库增/删/改
+func (pool *ConnPool) Exec(query string, args ...any) (n int64, err error) {
+	// example: pool.db.Exec("INSERT test SET name=?,age =?", "xiaowei", 18)
+	var result sql.Result
+	if result, err = pool.db.Exec(query, args); err != nil {
+		return
 	} else {
-		log.Println("SQL:", sqlStmt, "raise err:", err)
-		return -1
+		n, err = result.RowsAffected()
+		return
 	}
 }
 
-func (e dbEngine) ExecSQL(sqlStmt string) bool {
-	//if err := initDB(); err != nil {
-	//	return false
-	//}
-	//defer closeDB()
-
-	if result, err := db.Exec(sqlStmt); err == nil {
-		if _, err := result.RowsAffected(); err == nil {
-			return true
+// FetchAll 支持查询多条数据
+func FetchAll[M iTable](pool *ConnPool, whereOrQueryStmt string, args ...any) (collection.Slice[M], error) {
+	var err error
+	var rows *sql.Rows
+	s := make(collection.Slice[M], 0)
+	var q string
+	t := reflect.TypeOf(new(M))
+	if stmt := strings.ToUpper(whereOrQueryStmt); strings.HasPrefix(stmt, "SELECT") {
+		q = whereOrQueryStmt
+	} else {
+		tn, modelFields := getFields(t)
+		var dbFields = make([]string, 0)
+		for _, mf := range modelFields {
+			dbFields = append(dbFields, mf.Tag)
 		}
+		q = fmt.Sprintf("SELECT %s FROM %s WHERE %s", strings.Join(dbFields, ","),
+			tn, whereOrQueryStmt)
 	}
-	return false
-}
-
-func (e dbEngine) FetchAll(sqlStmt string, m iTable) collection.GoSlice {
-	//if err := initDB(); err != nil {
-	//	return nil
-	//}
-	//defer closeDB()
-
 	fExp := regexp.MustCompile(`(?i)(select|SELECT|from|FROM)`)
-	matches := fExp.Split(sqlStmt, 3)
+	matches := fExp.Split(q, 3)
 	if len(matches) > 2 {
-		if rows, err := db.Query(sqlStmt); err == nil {
+		if rows, err = pool.db.Query(q, args...); err == nil {
 			defer rows.Close()
-			t := reflect.TypeOf(m)
 			if t.Kind() == reflect.Ptr {
 				t = t.Elem()
 			}
-			//oriFields := strings.Split(matches[1], ",")
-			//if len(oriFields) == 1 && strings.Contains(oriFields[0], "*") {
 			oriFields, _ := rows.Columns()
-			//}
 			columns := len(oriFields)
 			modelFields := make([]modelField, 0, columns)
-
 			startPos := 0
-		LOOP:
+			//LOOP:
 			for j := 0; j < columns; j++ {
 				for i := startPos; i < t.NumField(); i++ {
-					if t.Field(i).Name != ExcludedFieldName &&
+					if t.Field(i).Name != ExcludedFieldName && t.Field(i).Name != TableName &&
 						strings.Contains(oriFields[j], t.Field(i).Tag.Get(ModelTagKeyName)) {
 						modelFields = append(modelFields, modelField{
 							Name: t.Field(i).Name,
 							Type: t.Field(i).Type.Name(),
 							Tag:  t.Field(i).Tag.Get(ModelTagKeyName),
 							Pos:  j})
-						startPos = i + 1
-						continue LOOP
+						//startPos = i + 1
+						//continue LOOP
 					}
 				}
 			}
-			dbResults := make([]interface{}, 0)
 
 			for rows.Next() {
 				results := make([]interface{}, columns)
@@ -130,8 +115,8 @@ func (e dbEngine) FetchAll(sqlStmt string, m iTable) collection.GoSlice {
 				for i, _ := range results {
 					results[i] = &data[i]
 				}
-				if err := rows.Scan(results...); err != nil {
-					log.Fatal(err)
+				if err = rows.Scan(results...); err != nil {
+					log.Println(err)
 				}
 
 				model := reflect.New(t)
@@ -149,76 +134,57 @@ func (e dbEngine) FetchAll(sqlStmt string, m iTable) collection.GoSlice {
 						model.Elem().FieldByName(v.Name).SetString(data[v.Pos].String)
 					}
 				}
+				model.Elem().FieldByName(ExcludedFieldName).Set(reflect.ValueOf(Table{
+					querySetIsNotNull: true,
+				}))
 				m := model.Interface()
-				dbResults = append(dbResults, m)
+				s.Push(*m.(*M))
 			}
-			return dbResults
 		}
 	}
-	return nil
+	return s, err
 }
 
-type Model struct {
-	Table iTable
-}
-
-func (m Model) FetchAll(whereOrQueryStmt string) collection.GoSlice {
-	e := dbEngine{}
-	if stmt := strings.ToUpper(whereOrQueryStmt); strings.HasPrefix(stmt, "SELECT") {
-		return e.FetchAll(whereOrQueryStmt, m.Table)
+// FetchOne 查询单条数据
+func FetchOne[M iTable](pool *ConnPool, whereOrQueryStmt string, args ...any) (M, error) {
+	if records, err := FetchAll[M](pool, whereOrQueryStmt, args...); err != nil {
+		return *new(M), err
 	} else {
-		modelFields := getFields(m.Table)
-		var dbFields = make([]string, 0)
-		for _, mf := range modelFields {
-			dbFields = append(dbFields, mf.Tag)
+		if getLen[M](records) > 0 {
+			return records[0], nil
+		} else {
+			return *new(M), nil
 		}
-		sqlStmt := fmt.Sprintf("SELECT %s FROM %s WHERE %s", strings.Join(dbFields, ","),
-			m.Table.getTableName(), whereOrQueryStmt)
-		return e.FetchAll(sqlStmt, m.Table)
 	}
 }
 
-func (m Model) FetchOne(whereStmt string) interface{} {
-	all := m.FetchAll(whereStmt)
-	if len(all) > 0 {
-		return all[0]
-	} else {
-		return nil
-	}
+func getLen[M iTable](rs []M) int {
+	return len(rs)
 }
 
-func (m Model) ExecSQL(sql string) bool {
-	e := dbEngine{}
-	return e.ExecSQL(sql)
-}
-
-func NewDBModel(t iTable, tableName string) Model {
-	t.setTableName(tableName)
-	return Model{Table: t}
-}
-
-func getFields(m iTable) []modelField {
-	t := reflect.TypeOf(m)
+func getFields(t reflect.Type) (string, []modelField) {
+	var tableName string
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
 	if t.Kind() != reflect.Struct {
-		return nil
+		return "", nil
 	}
 	fieldNum := t.NumField()
-	//dbFields := make([]string, 0, fieldNum)
 	objFields := make([]modelField, 0, fieldNum)
 
 	for i := 0; i < fieldNum; i++ {
-		if t.Field(i).Name != ExcludedFieldName {
-			//dbFields = append(dbFields, string(t.Field(i).Tag))
+		if t.Field(i).Name != ExcludedFieldName && t.Field(i).Name != TableName {
 			objFields = append(objFields, modelField{
 				Name: t.Field(i).Name,
 				Type: t.Field(i).Type.Name(),
 				Tag:  t.Field(i).Tag.Get(ModelTagKeyName)})
 		}
+		if t.Field(i).Name == TableName {
+			tableName = t.Field(i).Tag.Get(ModelTagKeyName)
+		}
 	}
-	return objFields
+	return tableName, objFields
 }
 
 type modelField struct {
@@ -229,18 +195,13 @@ type modelField struct {
 }
 
 type iTable interface {
-	setTableName(tableName string)
-	getTableName() string
+	IsDataNotNull() bool
 }
 
 type Table struct {
-	tableName string
+	querySetIsNotNull bool
 }
 
-func (t *Table) setTableName(tableName string) {
-	t.tableName = tableName
-}
-
-func (t Table) getTableName() string {
-	return t.tableName
+func (t Table) IsDataNotNull() bool {
+	return t.querySetIsNotNull
 }
