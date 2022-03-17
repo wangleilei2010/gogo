@@ -5,7 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"github.com/wangleilei2010/gogo/collection"
+	"go/ast"
+	"go/doc"
+	"go/parser"
+	"go/token"
 	"log"
+	"os"
+	"path/filepath"
 	"reflect"
 	"regexp"
 	"strconv"
@@ -20,12 +26,19 @@ const (
 	ModelTagKeyName   = "db"
 )
 
+var tableScanPaths = make([]string, 0)
+var modelTableNameMapping = make(map[string]string)
+
 type ConnPool struct {
 	db      *sql.DB
 	connStr string
 }
 
-func OpenPool(connStr string) (pool *ConnPool, err error) {
+func OpenPool(connStr string, tbScanPaths ...string) (pool *ConnPool, err error) {
+	if len(tbScanPaths) > 0 {
+		tableScanPaths = tbScanPaths
+		scanTableNames()
+	}
 	pool = &ConnPool{db: &sql.DB{}, connStr: connStr}
 	err = pool.open()
 	return
@@ -175,6 +188,10 @@ func getLen[M iTable](rs []M) int {
 
 func getFields(t reflect.Type) (string, []modelField) {
 	var tableName string
+	modelName := getModelName(t)
+	if tn, ok := modelTableNameMapping[modelName]; ok {
+		tableName = tn
+	}
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
@@ -191,7 +208,7 @@ func getFields(t reflect.Type) (string, []modelField) {
 				Type: t.Field(i).Type.Name(),
 				Tag:  t.Field(i).Tag.Get(ModelTagKeyName)})
 		}
-		if t.Field(i).Name == TableName {
+		if tableName == "" && t.Field(i).Name == TableName {
 			tableName = t.Field(i).Tag.Get(ModelTagKeyName)
 		}
 	}
@@ -215,4 +232,68 @@ type Table struct {
 
 func (t Table) IsDataNotNull() bool {
 	return t.querySetIsNotNull
+}
+
+func getModelName(t reflect.Type) string {
+	fullName := t.String()
+	splitFuncName := strings.Split(fullName, ".")
+	return splitFuncName[len(splitFuncName)-1]
+}
+
+func scanSingleGoFile(fileName string) {
+	fSet := token.NewFileSet()
+	parsedAst, _ := parser.ParseFile(fSet, fileName, nil, parser.ParseComments)
+
+	pkg := &ast.Package{
+		Name:  "Any",
+		Files: make(map[string]*ast.File),
+	}
+	pkg.Files[fileName] = parsedAst
+
+	importPath, _ := filepath.Abs("/")
+	myDoc := doc.New(pkg, importPath, doc.AllDecls)
+	for _, t := range myDoc.Types {
+		if strings.Contains(t.Doc, "@Table:") {
+			modelTableNameMapping[t.Name] = handleModelDoc(t.Doc)
+		}
+	}
+}
+
+func handleModelDoc(d string) string {
+	s := strings.TrimSpace(d)
+	return strings.ReplaceAll(s, "@Table:", "")
+}
+
+func scanTableNames() {
+	var scanPath, _ = os.Getwd()
+	var paths []string
+	if len(tableScanPaths) != 0 {
+		paths = make([]string, 0)
+		for _, sp := range tableScanPaths {
+			paths = append(paths, filepath.Join(scanPath, sp))
+		}
+	} else {
+		paths = []string{scanPath}
+	}
+
+	fmt.Println("tableName scan paths:", paths)
+	var files = make([]string, 0)
+
+	for _, p := range paths {
+		if err := filepath.Walk(p, func(path string, info os.FileInfo, err error) error {
+			if info.IsDir() && strings.HasPrefix(info.Name(), ".") {
+				return filepath.SkipDir
+			}
+			if strings.HasSuffix(path, ".go") {
+				files = append(files, path)
+			}
+			return nil
+		}); err != nil {
+			fmt.Printf("scan files err: %v", err)
+		} else {
+			for _, f := range files {
+				scanSingleGoFile(f)
+			}
+		}
+	}
 }

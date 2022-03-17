@@ -2,17 +2,17 @@ package gogo
 
 import (
 	"fmt"
+	"github.com/wangleilei2010/gogo/collection"
 	"strings"
 	"testing"
-
-	"github.com/wangleilei2010/gogo/collection"
 
 	"github.com/wangleilei2010/gogo/db"
 )
 
+// @Table:`ci`.`t_user`
 type UserModel struct {
 	db.Table
-	TableName   string `db:"t_user"`
+	//TableName   string `db:"t_user"`
 	UserName    string `db:"username"`
 	DisplayName string `db:"display_name"`
 }
@@ -25,7 +25,7 @@ type Person struct {
 func TestBasicModelGenerics(t *testing.T) {
 	var pool *db.ConnPool
 	var err error
-	pool, err = db.OpenPool("root:root@tcp(ip:3306)/ci")
+	pool, err = db.OpenPool("root:root@tcp(ip:3306)/ci", "basic_test.go")
 	defer pool.Close()
 	if err != nil {
 		fmt.Println("open db err:", err)
