@@ -9,7 +9,7 @@ import (
 	"github.com/wangleilei2010/gogo/db"
 )
 
-// @Table:`ci`.`t_user`
+// UserModel @Table:`ci`.`t_user`
 type UserModel struct {
 	db.Table
 	//TableName   string `db:"t_user"`

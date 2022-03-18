@@ -260,8 +260,9 @@ func scanSingleGoFile(fileName string) {
 }
 
 func handleModelDoc(d string) string {
+	// model doc's format should be "XXX @Table:table_name"
 	s := strings.TrimSpace(d)
-	return strings.ReplaceAll(s, "@Table:", "")
+	return strings.Split(s, ":")[1]
 }
 
 func scanTableNames() {
