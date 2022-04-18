@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/wangleilei2010/gogo/collection"
 	"go/ast"
 	"go/doc"
@@ -11,19 +12,21 @@ import (
 	"go/token"
 	"log"
 	"os"
+	"path"
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"runtime"
 	"strconv"
 	"strings"
-
-	_ "github.com/go-sql-driver/mysql"
+	"time"
 )
 
 const (
 	ExcludedFieldName = "Table"
 	TableName         = "TableName"
 	ModelTagKeyName   = "db"
+	TagNameForTable   = "name"
 )
 
 var tableScanPaths = make([]string, 0)
@@ -34,17 +37,25 @@ type ConnPool struct {
 	connStr string
 }
 
-func OpenPool(connStr string, tbScanPaths ...string) (pool *ConnPool, err error) {
-	if len(tbScanPaths) > 0 {
-		tableScanPaths = tbScanPaths
-		scanTableNames()
+func OpenPool(connStr string, params ...int) (pool *ConnPool, err error) {
+	var (
+		maxLifeTime  = 2
+		maxIdleConns = 10
+	)
+	if len(params) == 1 {
+		maxLifeTime = params[0]
 	}
+	if len(params) >= 2 {
+		maxLifeTime = params[0]
+		maxIdleConns = params[1]
+	}
+
 	pool = &ConnPool{db: &sql.DB{}, connStr: connStr}
-	err = pool.open()
+	err = pool.open(maxLifeTime, maxIdleConns)
 	return
 }
 
-func (pool *ConnPool) open() error {
+func (pool *ConnPool) open(maxLifeTime, maxIdleConns int) error {
 	var err error
 	if pool.connStr == "" {
 		return errors.New("DB connStr not set")
@@ -52,9 +63,9 @@ func (pool *ConnPool) open() error {
 	if pool.db, err = sql.Open("mysql", pool.connStr); err != nil {
 		return err
 	} else {
-		pool.db.SetConnMaxLifetime(2000)
-		pool.db.SetMaxIdleConns(10)
-		err = pool.db.Ping()
+		pool.db.SetConnMaxLifetime(time.Second * time.Duration(maxLifeTime))
+		pool.db.SetMaxIdleConns(maxIdleConns)
+		//err = pool.db.Ping()
 		return err
 	}
 }
@@ -211,6 +222,9 @@ func getFields(t reflect.Type) (string, []modelField) {
 		if tableName == "" && t.Field(i).Name == TableName {
 			tableName = t.Field(i).Tag.Get(ModelTagKeyName)
 		}
+		if tableName == "" && t.Field(i).Name == ExcludedFieldName {
+			tableName = t.Field(i).Tag.Get(TagNameForTable)
+		}
 	}
 	return tableName, objFields
 }
@@ -266,7 +280,7 @@ func handleModelDoc(d string) string {
 }
 
 func scanTableNames() {
-	var scanPath, _ = os.Getwd()
+	var scanPath = getCurrentAbPathByCaller()
 	var paths []string
 	if len(tableScanPaths) != 0 {
 		paths = make([]string, 0)
@@ -297,4 +311,13 @@ func scanTableNames() {
 			}
 		}
 	}
+}
+
+func getCurrentAbPathByCaller() string {
+	var abPath string
+	_, filename, _, ok := runtime.Caller(0)
+	if ok {
+		abPath = path.Dir(filename)
+	}
+	return abPath
 }
