@@ -86,6 +86,68 @@ func (pool *ConnPool) Count(sqlStmt string) int {
 	return -1
 }
 
+type Column struct {
+	Name       string
+	Type       string
+	IsNullable int
+	Default    interface{}
+	Extra      string
+}
+
+type Columns struct {
+	cols []Column
+}
+
+func (c Columns) Compare(exists ...string) (mustAdd, recommendedAdd []Column, mustDel []string) {
+	for _, col := range c.cols {
+		// 存在数据库中，但不存在insert sql中
+		if !collection.New(exists).Contains(func(e string) bool { return col.Name == e }) {
+			if col.IsNullable == 0 && col.Extra != "auto_increment" {
+				mustAdd = append(mustAdd, col)
+			} else if col.IsNullable == 1 {
+				recommendedAdd = append(recommendedAdd, col)
+			}
+		}
+	}
+
+	for _, e := range exists {
+		if !collection.New(c.cols).Contains(func(col Column) bool { return col.Name == e }) {
+			mustDel = append(mustDel, e)
+		}
+	}
+	return
+}
+
+func (pool *ConnPool) GetColumns(schema, table string) (Columns, error) {
+	var err error
+	var rows *sql.Rows
+	cols := make([]Column, 0)
+	var sql = `select COLUMN_NAME,column_type,column_default,if (is_nullable='YES',1,0) is_nullable,EXTRA
+from information_schema.columns 
+where TABLE_SCHEMA=? and TABLE_NAME=? order by ordinal_position asc;`
+	if rows, err = pool.db.Query(sql, schema, table); err == nil {
+		defer rows.Close()
+
+		for rows.Next() {
+			var columnName string
+			var columnType string
+			var columnDefault interface{}
+			var isNullable int
+			var extra string
+
+			if err = rows.Scan(&columnName, &columnType, &columnDefault, &isNullable, &extra); err != nil {
+				return Columns{}, err
+			}
+			col := Column{Name: columnName, Type: columnType, IsNullable: isNullable,
+				Default: columnDefault, Extra: extra}
+			cols = append(cols, col)
+		}
+		c := Columns{cols: cols}
+		return c, nil
+	}
+	return Columns{}, err
+}
+
 // Exec 支持数据库增/删/改
 func (pool *ConnPool) Exec(query string, args ...any) (n int64, err error) {
 	// example: pool.db.Exec("INSERT test SET name=?,age =?", "xiaowei", 18)

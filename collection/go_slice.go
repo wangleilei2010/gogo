@@ -71,4 +71,12 @@ func Map[E, V any](s Slice[E], f func(e E) V) Slice[V] {
 	return d
 }
 
+func New[T any](a []T) *Slice[T] {
+	s := &Slice[T]{}
+	for _, i := range a {
+		s.Push(i)
+	}
+	return s
+}
+
 type GenericMap[K int | string, V any] map[K]V
