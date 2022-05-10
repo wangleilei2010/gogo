@@ -11,12 +11,27 @@ func (s *Slice[T]) Push(t T) {
 	*s = ns
 }
 
-func (s Slice[T]) Len() int {
-	l := 0
-	for i, _ := range s {
-		l = i
+func (s *Slice[T]) Append(t ...T) {
+	ns := make([]T, 0)
+	for _, e := range *s {
+		ns = append(ns, e)
 	}
-	return l + 1
+	ns = append(ns, t...)
+	*s = ns
+}
+
+func (s Slice[T]) Len() int {
+	return len(s)
+}
+
+func (s *Slice[T]) Dedup() *Slice[T] {
+	//var n Slice[T]
+	//var m map[T]interface{}
+	//for _, e := range *s {
+	//
+	//	ns = append(ns, e)
+	//}
+	return s
 }
 
 func (s Slice[T]) Foreach(f func(t T)) {
