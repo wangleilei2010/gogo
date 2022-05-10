@@ -12,13 +12,17 @@ import (
 	"time"
 )
 
-type Response[T any] struct {
+type Response struct {
 	Text       string
 	StatusCode int
-	Value      T
 }
 
-func (resp *Response[T]) Json() map[string]interface{} {
+type ResponseT[T any] struct {
+	Response
+	Value T
+}
+
+func (resp *Response) Json() map[string]interface{} {
 	var mapData map[string]interface{}
 	if err := json.Unmarshal([]byte(resp.Text), &mapData); err != nil {
 		return nil
@@ -26,7 +30,7 @@ func (resp *Response[T]) Json() map[string]interface{} {
 	return mapData
 }
 
-func (resp *Response[T]) J(expression string) interface{} {
+func (resp *Response) J(expression string) interface{} {
 	if j := resp.Json(); j != nil {
 		if r, e := jsonpath.JsonPathLookup(j, expression); e != nil {
 			return nil
@@ -42,13 +46,13 @@ type Session struct {
 	core *http.Client
 }
 
-func request[T any](client *Session, url, method, body string) (*Response[T], error) {
+func request(client *Session, url, method, body string) (*Response, error) {
 	var (
-		req           *http.Request
-		res           *http.Response
-		err           error
-		respTextBytes []byte
-		bodyReader    io.Reader = nil
+		req        *http.Request
+		res        *http.Response
+		err        error
+		b          []byte
+		bodyReader io.Reader = nil
 	)
 
 	if body != "" {
@@ -66,37 +70,68 @@ func request[T any](client *Session, url, method, body string) (*Response[T], er
 	if res != nil && res.Body != nil {
 		defer res.Body.Close()
 	}
-	if respTextBytes, err = ioutil.ReadAll(res.Body); err != nil {
+	if b, err = ioutil.ReadAll(res.Body); err != nil {
 		return nil, err
 	} else {
-		var value T
-		err = json.Unmarshal(respTextBytes, &value)
-		if err != nil {
-			return nil, err
-		}
-		return &Response[T]{Text: string(respTextBytes), Value: value,
-			StatusCode: res.StatusCode}, nil
+		return &Response{Text: string(b), StatusCode: res.StatusCode}, nil
 	}
 }
 
-func Post[T any](client *Session, url, body string) (*Response[T], error) {
+func unmarshal[T any](resp *Response) (*ResponseT[T], error) {
+	var value T
+	err := json.Unmarshal([]byte(resp.Text), &value)
+	if err != nil {
+		return nil, err
+	}
+	return &ResponseT[T]{*resp, value}, nil
+}
+
+func Post(client *Session, url, body string) (*Response, error) {
 	var session *Session
 	if client == nil {
 		session = NewSession(time.Second * 120)
 	} else {
 		session = client
 	}
-	return request[T](session, url, "POST", body)
+	return request(session, url, "POST", body)
 }
 
-func Get[T any](client *Session, url string) (*Response[T], error) {
+func PostAndUnmarshal[T any](client *Session, url, body string) (*ResponseT[T], error) {
 	var session *Session
 	if client == nil {
 		session = NewSession(time.Second * 120)
 	} else {
 		session = client
 	}
-	return request[T](session, url, "GET", "")
+	resp, err := request(session, url, "POST", body)
+	if err != nil {
+		return nil, err
+	}
+	return unmarshal[T](resp)
+}
+
+func Get(client *Session, url string) (*Response, error) {
+	var session *Session
+	if client == nil {
+		session = NewSession(time.Second * 120)
+	} else {
+		session = client
+	}
+	return request(session, url, "GET", "")
+}
+
+func GetAndUnmarshal[T any](client *Session, url string) (*ResponseT[T], error) {
+	var session *Session
+	if client == nil {
+		session = NewSession(time.Second * 120)
+	} else {
+		session = client
+	}
+	resp, err := request(session, url, "GET", "")
+	if err != nil {
+		return nil, err
+	}
+	return unmarshal[T](resp)
 }
 
 type MyTransport struct {

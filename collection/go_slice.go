@@ -2,6 +2,10 @@ package collection
 
 type Slice[T any] []T
 
+type MapKey interface {
+	comparable
+}
+
 func (s *Slice[T]) Push(t T) {
 	ns := make([]T, 0)
 	for _, e := range *s {
@@ -22,16 +26,6 @@ func (s *Slice[T]) Append(t ...T) {
 
 func (s Slice[T]) Len() int {
 	return len(s)
-}
-
-func (s *Slice[T]) Dedup() *Slice[T] {
-	//var n Slice[T]
-	//var m map[T]interface{}
-	//for _, e := range *s {
-	//
-	//	ns = append(ns, e)
-	//}
-	return s
 }
 
 func (s Slice[T]) Foreach(f func(t T)) {
@@ -94,4 +88,58 @@ func New[T any](a []T) *Slice[T] {
 	return s
 }
 
-type GenericMap[K int | string, V any] map[K]V
+//type ComparableSlice[T comparable] Slice[T]
+//
+//func (s *ComparableSlice[T]) Dedup() ComparableSlice[T] {
+//	var n ComparableSlice[T]
+//	var m GenericMap[T, interface{}]
+//	for _, e := range *s {
+//		if !m.ContainsKey(e) {
+//			m.Put(e, nil)
+//			n.Push(e)
+//		}
+//	}
+//	return n
+//}
+
+type GenericMap[K MapKey, V any] map[K]V
+
+func (m *GenericMap[K, V]) ContainsKey(k K) bool {
+	if *m == nil {
+		*m = make(map[K]V)
+	}
+	if _, ok := (*m)[k]; ok {
+		return true
+	}
+	return false
+}
+
+func (m *GenericMap[K, V]) DelKey(k K) {
+	if *m == nil {
+		*m = make(map[K]V)
+	}
+	delete(*m, k)
+}
+
+func (m *GenericMap[K, V]) Put(k K, v V) {
+	if *m == nil {
+		*m = make(map[K]V)
+	}
+	(*m)[k] = v
+}
+
+func (m GenericMap[K, V]) Keys() Slice[K] {
+	var keys Slice[K]
+	for k, _ := range m {
+		keys.Push(k)
+	}
+	return keys
+}
+
+func (m GenericMap[K, V]) Values() Slice[V] {
+	var values Slice[V]
+	for _, v := range m {
+		values.Push(v)
+	}
+	return values
+}

@@ -19,3 +19,14 @@ func TestSliceInit(t *testing.T) {
 	s.Foreach(func(e int) { fmt.Println(e) })
 	fmt.Println("len =", s.Len())
 }
+
+func TestGenericInit(t *testing.T) {
+	var m collection.GenericMap[int, int]
+	m.Put(1, 2)
+	m.Put(3, 4)
+	for k, v := range m {
+		fmt.Println(k, v)
+	}
+	m.Keys().Foreach(func(k int) { fmt.Print(k) })
+	m.Values().Foreach(func(v int) { fmt.Print(v) })
+}
