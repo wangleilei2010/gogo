@@ -4,8 +4,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/wangleilei2010/gogo/collection"
 	"go/ast"
 	"go/doc"
 	"go/parser"
@@ -20,6 +18,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/wangleilei2010/gogo/collection"
 )
 
 const (
@@ -87,19 +88,19 @@ func (pool *ConnPool) Count(sqlStmt string) int {
 }
 
 type Column struct {
-	Name       string
-	Type       string
-	IsNullable int
-	Default    interface{}
-	Extra      string
+	Name       string      `json:"name"`
+	Type       string      `json:"type"`
+	IsNullable int         `json:"isNullable"`
+	Default    interface{} `json:"default"`
+	Extra      string      `json:"extra"`
 }
 
 type Columns struct {
-	cols []Column
+	Cols []Column
 }
 
 func (c Columns) Compare(exists ...string) (mustAdd, recommendedAdd []Column, mustDel []string) {
-	for _, col := range c.cols {
+	for _, col := range c.Cols {
 		// 存在数据库中，但不存在insert sql中
 		if !collection.New(exists).Contains(func(e string) bool { return col.Name == e }) {
 			if col.IsNullable == 0 && col.Extra != "auto_increment" {
@@ -111,7 +112,7 @@ func (c Columns) Compare(exists ...string) (mustAdd, recommendedAdd []Column, mu
 	}
 
 	for _, e := range exists {
-		if !collection.New(c.cols).Contains(func(col Column) bool { return col.Name == e }) {
+		if !collection.New(c.Cols).Contains(func(col Column) bool { return col.Name == e }) {
 			mustDel = append(mustDel, e)
 		}
 	}
@@ -142,7 +143,7 @@ where TABLE_SCHEMA=? and TABLE_NAME=? order by ordinal_position asc;`
 				Default: columnDefault, Extra: extra}
 			cols = append(cols, col)
 		}
-		c := Columns{cols: cols}
+		c := Columns{Cols: cols}
 		return c, nil
 	}
 	return Columns{}, err
@@ -209,7 +210,7 @@ func FetchAll[M iTable](pool *ConnPool, whereOrQueryStmt string, args ...any) (c
 			for rows.Next() {
 				results := make([]interface{}, columns)
 				data := make([]sql.NullString, columns)
-				for i, _ := range results {
+				for i := 0; i < len(results); i++ {
 					results[i] = &data[i]
 				}
 				if err = rows.Scan(results...); err != nil {

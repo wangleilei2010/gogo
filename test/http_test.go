@@ -16,5 +16,8 @@ func TestHttpClient(t *testing.T) {
 	fmt.Println(resp.StatusCode)
 
 	resp2, _ := http.GetAndUnmarshal[map[string]interface{}](client, url)
-	fmt.Println(resp2.StatusCode)
+	fmt.Println(resp2.StatusCode, resp2.Value)
+
+	data := resp2.Value
+	fmt.Println(data["key"])
 }
