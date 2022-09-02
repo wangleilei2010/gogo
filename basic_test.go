@@ -25,7 +25,7 @@ type Person struct {
 func TestBasicModelGenerics(t *testing.T) {
 	var pool *db.ConnPool
 	var err error
-	pool, err = db.OpenPool("root:root@tcp(ip:3306)/ci", "basic_test.go")
+	pool, err = db.OpenPool("root:root@tcp(ip:3306)/ci")
 	defer pool.Close()
 	if err != nil {
 		fmt.Println("open db err:", err)
